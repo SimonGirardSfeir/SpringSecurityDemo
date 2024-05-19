@@ -3,6 +3,8 @@ package org.girardsimon.springsecuritydemo.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.config.annotation.ObjectPostProcessor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.core.userdetails.User;
@@ -21,7 +23,9 @@ public class SecurityConfig {
     @Value("${robot-authentication.passwords}")
     private List<String> passwords;
 
+    // Unchecked cast is normal with the Spring Security's ObjectPostProcessor use
     @Bean
+    @SuppressWarnings("unchecked")
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         RobotLoginConfigurer configurer = new RobotLoginConfigurer()
                 .password(passwords);
@@ -32,7 +36,13 @@ public class SecurityConfig {
                     auth.anyRequest().authenticated();
                 })
                 .formLogin(withDefaults())
-                .oauth2Login(withDefaults())
+                .oauth2Login(oauth2configurer -> oauth2configurer.withObjectPostProcessor(
+                        new ObjectPostProcessor<AuthenticationProvider>() {
+                            @Override
+                            public <O extends AuthenticationProvider> O postProcess(O object) {
+                                return (O) new RateLimitedAuthenticationProvider(object);
+                            }
+                        }))
                 .with(configurer, withDefaults())
                 .authenticationProvider(new DumbAuthenticationProvider())
                 .build();
