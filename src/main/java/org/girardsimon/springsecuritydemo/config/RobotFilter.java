@@ -5,6 +5,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -16,6 +19,13 @@ public class RobotFilter extends OncePerRequestFilter {
 
     public static final String HEADER_NAME = "x-robot-password";
 
+    private final AuthenticationManager authenticationManager;
+
+    public RobotFilter(AuthenticationManager authenticationManager) {
+        this.authenticationManager = authenticationManager;
+
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         if(shouldNotExecuteFilter(request)) {
@@ -24,18 +34,19 @@ public class RobotFilter extends OncePerRequestFilter {
         }
 
         String password = request.getHeader(HEADER_NAME);
-        if (!"beep-boop".equals(password)) {
+        RobotAuthentication authRequest = RobotAuthentication.unauthenticated(password);
+        try {
+            Authentication authentication = authenticationManager.authenticate(authRequest);
+            SecurityContext newContext = SecurityContextHolder.createEmptyContext();
+            newContext.setAuthentication(authentication);
+            SecurityContextHolder.setContext(newContext);
+            filterChain.doFilter(request, response);
+        } catch (AuthenticationException e) {
             response.setStatus(HttpStatus.FORBIDDEN.value());
             response.setCharacterEncoding("UTF-8");
             response.setHeader("Content-Type", "text/plain;charset=UTF-8");
-            response.getWriter().println("You are not allowed to access this resource because you are not a 🤖");
-            return;
+            response.getWriter().println(e.getMessage());
         }
-
-        SecurityContext newContext = SecurityContextHolder.createEmptyContext();
-        newContext.setAuthentication(new RobotAuthentication());
-        SecurityContextHolder.setContext(newContext);
-        filterChain.doFilter(request, response);
     }
 
     private static boolean shouldNotExecuteFilter(HttpServletRequest request) {
