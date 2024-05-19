@@ -27,6 +27,7 @@ public class SecurityConfig {
                 .formLogin(withDefaults())
                 .oauth2Login(withDefaults())
                 .addFilterBefore(new RobotFilter(), UsernamePasswordAuthenticationFilter.class)
+                .authenticationProvider(new DumbAuthenticationProvider())
                 .build();
     }
 
